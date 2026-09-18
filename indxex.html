@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AXIOM — Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #0a0e12;
+      --panel:     #0f141a;
+      --surface:   #141b24;
+      --border:    #1e2d3d;
+      --accent:    #00d4ff;
+      --accent2:   #ff6b35;
+      --accent3:   #ffd700;
+      --text:      #e8f4f8;
+      --muted:     #4a6272;
+      --btn-bg:    #111820;
+      --btn-hover: #182230;
+      --op-bg:     #0d1e2a;
+      --op-hover:  #122538;
+      --eq-bg:     #00d4ff;
+      --eq-text:   #0a0e12;
+      --glow:      0 0 18px rgba(0,212,255,0.35);
+      --glow-sm:   0 0 8px rgba(0,212,255,0.2);
+      --grid-line: rgba(0,212,255,0.04);
+      --display-bg:#080c10;
+      --scan-color:rgba(0,212,255,0.015);
+    }
+
+    :root.light {
+      --bg:        rgba(200,184,154,0.72);
+      --panel:     rgba(191,173,147,0.65);
+      --surface:   rgba(181,162,133,0.60);
+      --border:    rgba(156,138,110,0.55);
+      --accent:    #3a1e04;
+      --accent2:   #8b2500;
+      --accent3:   #3a4a1a;
+      --text:      #1e1508;
+      --muted:     #6b5a42;
+      --btn-bg:    rgba(184,168,136,0.58);
+      --btn-hover: rgba(173,156,122,0.68);
+      --op-bg:     rgba(168,149,110,0.55);
+      --op-hover:  rgba(156,135,96,0.65);
+      --eq-bg:     rgba(58,30,4,0.85);
+      --eq-text:   #f5ede0;
+      --glow:      0 0 14px rgba(58,30,4,0.25);
+      --glow-sm:   0 0 6px rgba(58,30,4,0.18);
+      --grid-line: rgba(58,30,4,0.07);
+      --display-bg:rgba(168,149,110,0.55);
+      --scan-color:rgba(58,30,4,0.025);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'DM Sans', sans-serif;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── Transition all theme vars ── */
+    body, .calc-body, .calc-header, .calc-display,
+    .memory-bar, .history-strip, .calc-footer,
+    .c-btn, .mem-btn { transition: background 0.35s, color 0.35s, border-color 0.35s; }
+
+    /* ── Grid background ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── Ambient glows ── */
+    body::after {
+      content: '';
+      position: fixed;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,212,255,0.06) 0%, transparent 70%);
+      top: -200px; left: -200px;
+      pointer-events: none;
+    }
+
+    .ambient-2 {
+      position: fixed;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,107,53,0.05) 0%, transparent 70%);
+      bottom: -150px; right: -150px;
+      pointer-events: none;
+    }
+
+    /* ── Calculator shell ── */
+    .calc-shell {
+      position: relative;
+      width: 380px;
+      animation: boot-in 0.8s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes boot-in {
+      from { opacity: 0; transform: translateY(32px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Corner brackets */
+    .calc-shell::before,
+    .calc-shell::after {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      border-color: var(--accent);
+      border-style: solid;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .calc-shell::before {
+      top: -4px; left: -4px;
+      border-width: 2px 0 0 2px;
+    }
+    .calc-shell::after {
+      bottom: -4px; right: -4px;
+      border-width: 0 2px 2px 0;
+    }
+    .corner-tr, .corner-bl {
+      position: absolute;
+      width: 18px; height: 18px;
+      border-color: var(--accent);
+      border-style: solid;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .corner-tr { top: -4px; right: -4px; border-width: 2px 2px 0 0; }
+    .corner-bl { bottom: -4px; left: -4px; border-width: 0 0 2px 2px; }
+
+    .calc-body {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* ── Header bar ── */
+    .calc-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .calc-brand {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.25em;
+      color: var(--accent);
+      text-shadow: var(--glow-sm);
+    }
+    .status-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .status-dots span {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .status-dots span:nth-child(1) { background: #ff5f56; }
+    .status-dots span:nth-child(2) { background: #ffbd2e; }
+    .status-dots span:nth-child(3) { background: #27c93f; }
+
+    /* ── Display ── */
+    .calc-display {
+      background: var(--display-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px 16px;
+      position: relative;
+      min-height: 120px;
+      transition: background 0.35s;
+    }
+
+    .display-scan {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        var(--scan-color) 2px,
+        var(--scan-color) 4px
+      );
+      pointer-events: none;
+    }
+
+    .display-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .display-expr {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-height: 20px;
+      text-align: right;
+      letter-spacing: 0.05em;
+      transition: opacity 0.2s;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .display-main {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 3rem;
+      color: var(--accent);
+      text-align: right;
+      line-height: 1.1;
+      text-shadow: var(--glow);
+      letter-spacing: -0.02em;
+      margin-top: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .display-main.error { color: var(--accent2); text-shadow: 0 0 18px rgba(255,107,53,0.4); }
+    .display-main.result-flash { animation: flash 0.3s ease; }
+    @keyframes flash {
+      0%   { opacity: 1; }
+      40%  { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    .display-cursor {
+      display: inline-block;
+      width: 2px; height: 2.8rem;
+      background: var(--accent);
+      vertical-align: bottom;
+      margin-left: 3px;
+      animation: blink 1s step-end infinite;
+      box-shadow: var(--glow-sm);
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Memory bar ── */
+    .memory-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 24px;
+      display: flex;
+      gap: 16px;
+    }
+    .mem-btn {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 4px;
+      transition: color 0.2s;
+      text-transform: uppercase;
+    }
+    .mem-btn:hover { color: var(--accent3); }
+    .mem-btn.active { color: var(--accent3); }
+
+    /* ── Buttons grid ── */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      padding: 1px;
+    }
+
+    .c-btn {
+      background: var(--btn-bg);
+      border: none;
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 1.1rem;
+      padding: 0;
+      height: 68px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: background 0.15s, color 0.15s;
+      letter-spacing: 0.05em;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Ripple */
+    .c-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(0,212,255,0.18) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .c-btn:active::after { opacity: 1; transition: opacity 0s; }
+
+    .c-btn:hover { background: var(--btn-hover); }
+    .c-btn:active { transform: scale(0.95); }
+
+    /* Number buttons */
+    .c-btn.num { color: var(--text); }
+    .c-btn.num:hover { color: #fff; }
+
+    /* Zero spans 2 cols */
+    .c-btn.zero { grid-column: span 2; }
+
+    /* Operators */
+    .c-btn.op {
+      background: var(--op-bg);
+      color: var(--accent);
+      font-size: 1.3rem;
+    }
+    .c-btn.op:hover {
+      background: var(--op-hover);
+      color: #fff;
+      text-shadow: var(--glow-sm);
+    }
+
+    /* Function buttons (AC, +/-, %) */
+    .c-btn.fn {
+      background: var(--surface);
+      color: var(--accent3);
+      font-size: 0.85rem;
+      letter-spacing: 0.1em;
+    }
+    .c-btn.fn:hover { background: #1a2535; color: #fff; }
+
+    /* Equals */
+    .c-btn.eq {
+      background: var(--accent);
+      color: var(--eq-text);
+      font-size: 1.4rem;
+      font-weight: bold;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), var(--glow-sm);
+    }
+    .c-btn.eq:hover {
+      background: #22e0ff;
+      box-shadow: var(--glow);
+    }
+    .c-btn.eq:active { background: #00b8d9; }
+
+    /* Clear button accent */
+    .c-btn.clear { color: var(--accent2); }
+    .c-btn.clear:hover { color: #ff8c66; }
+
+    /* ── Theme Toggle ── */
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--btn-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px 4px 6px;
+      cursor: pointer;
+      transition: background 0.3s, border-color 0.3s, transform 0.15s;
+    }
+    .theme-toggle:hover { background: var(--btn-hover); border-color: var(--accent); transform: scale(1.04); }
+    .theme-toggle:active { transform: scale(0.97); }
+    .toggle-track {
+      width: 28px; height: 15px;
+      background: var(--border);
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .toggle-track.on { background: var(--accent); }
+    .toggle-thumb {
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: #fff;
+      transition: left 0.25s cubic-bezier(0.34,1.56,0.64,1);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .toggle-track.on .toggle-thumb { left: 15px; }
+    .toggle-icon {
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+      transition: color 0.3s;
+      user-select: none;
+    }
+    .theme-toggle:hover .toggle-icon { color: var(--accent); }
+
+    :root.light .calc-body {
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    :root.light .calc-header,
+    :root.light .calc-display,
+    :root.light .memory-bar,
+    :root.light .history-strip,
+    :root.light .calc-footer {
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    :root.light .c-btn {
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .calc-footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .calc-footer-text {
+      font-size: 0.6rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .calc-led {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .led-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+      animation: led-pulse 2s ease-in-out infinite;
+    }
+    @keyframes led-pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .led-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+    }
+
+    /* Key press glow line */
+    .key-flash {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--accent);
+      box-shadow: var(--glow-sm);
+      opacity: 0;
+      animation: key-line 0.3s ease forwards;
+    }
+    @keyframes key-line {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* History tooltip */
+    .history-strip {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 24px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      min-height: 26px;
+      text-align: right;
+      letter-spacing: 0.05em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div class="ambient-2"></div>
+
+<div class="calc-shell">
+  <div class="corner-tr"></div>
+  <div class="corner-bl"></div>
+
+  <div class="calc-body">
+
+    <!-- Header -->
+    <div class="calc-header">
+      <span class="calc-brand">AXIOM·7</span>
+      <div class="status-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <!-- Display -->
+    <div class="calc-display">
+      <div class="display-scan"></div>
+      <div class="display-label">OUTPUT</div>
+      <div class="display-expr" id="expr"></div>
+      <div class="display-main" id="display">
+        0<span class="display-cursor"></span>
+      </div>
+    </div>
+
+    <!-- History strip -->
+    <div class="history-strip" id="history">—</div>
+
+    <!-- Memory bar -->
+    <div class="memory-bar">
+      <button class="mem-btn" id="mc"  onclick="memClear()">MC</button>
+      <button class="mem-btn" id="mr"  onclick="memRecall()">MR</button>
+      <button class="mem-btn" id="ms"  onclick="memStore()">MS</button>
+      <button class="mem-btn" id="mpl" onclick="memAdd()">M+</button>
+      <button class="mem-btn" id="mmi" onclick="memSub()">M−</button>
+    </div>
+
+    <!-- Button grid -->
+    <div class="btn-grid">
+
+      <!-- Row 1 -->
+      <button class="c-btn fn clear" onclick="pressBtn('AC')">AC</button>
+      <button class="c-btn fn"       onclick="pressBtn('+/-')">±</button>
+      <button class="c-btn fn"       onclick="pressBtn('%')">%</button>
+      <button class="c-btn op"       onclick="pressBtn('/')">÷</button>
+
+      <!-- Row 2 -->
+      <button class="c-btn num" onclick="pressBtn('7')">7</button>
+      <button class="c-btn num" onclick="pressBtn('8')">8</button>
+      <button class="c-btn num" onclick="pressBtn('9')">9</button>
+      <button class="c-btn op"  onclick="pressBtn('*')">×</button>
+
+      <!-- Row 3 -->
+      <button class="c-btn num" onclick="pressBtn('4')">4</button>
+      <button class="c-btn num" onclick="pressBtn('5')">5</button>
+      <button class="c-btn num" onclick="pressBtn('6')">6</button>
+      <button class="c-btn op"  onclick="pressBtn('-')">−</button>
+
+      <!-- Row 4 -->
+      <button class="c-btn num" onclick="pressBtn('1')">1</button>
+      <button class="c-btn num" onclick="pressBtn('2')">2</button>
+      <button class="c-btn num" onclick="pressBtn('3')">3</button>
+      <button class="c-btn op"  onclick="pressBtn('+')">+</button>
+
+      <!-- Row 5 -->
+      <button class="c-btn num zero" onclick="pressBtn('0')">0</button>
+      <button class="c-btn num"      onclick="pressBtn('.')">.</button>
+      <button class="c-btn eq"       onclick="pressBtn('=')">=</button>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="calc-footer">
+      <span class="calc-footer-text">v2.4.1 · PRECISION MODE</span>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+          <div class="toggle-track" id="toggleTrack">
+            <div class="toggle-thumb"></div>
+          </div>
+          <span class="toggle-icon" id="toggleLabel">DARK</span>
+        </button>
+        <div class="calc-led">
+          <div class="led-dot"></div>
+          <span class="led-label">READY</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let current = '0';
+  let stored  = null;
+  let operator = null;
+  let justEvaled = false;
+  let memory  = 0;
+  let hasMemory = false;
+
+  const display  = document.getElementById('display');
+  const exprEl   = document.getElementById('expr');
+  const histEl   = document.getElementById('history');
+
+  function updateDisplay(val, flash) {
+    const cursor = '<span class="display-cursor"></span>';
+    display.innerHTML = val + cursor;
+    if (flash) {
+      display.classList.remove('result-flash');
+      void display.offsetWidth;
+      display.classList.add('result-flash');
+    }
+    display.classList.remove('error');
+  }
+
+  function showError(msg) {
+    display.innerHTML = msg;
+    display.classList.add('error');
+    current = '0';
+    stored = null;
+    operator = null;
+    justEvaled = false;
+    exprEl.textContent = '';
+  }
+
+  function pressBtn(val) {
+    addKeyFlash(val);
+
+    if (val === 'AC') {
+      current = '0'; stored = null; operator = null; justEvaled = false;
+      exprEl.textContent = '';
+      histEl.textContent = '—';
+      updateDisplay('0');
+      return;
+    }
+
+    if (val === '+/-') {
+      if (current !== '0') {
+        current = current.startsWith('-') ? current.slice(1) : '-' + current;
+        updateDisplay(current);
+      }
+      return;
+    }
+
+    if (val === '%') {
+      const n = parseFloat(current);
+      if (!isNaN(n)) {
+        current = String(n / 100);
+        updateDisplay(current);
+      }
+      return;
+    }
+
+    if (['+', '-', '*', '/'].includes(val)) {
+      if (operator && !justEvaled && stored !== null) {
+        const result = compute(parseFloat(stored), parseFloat(current), operator);
+        if (result === null) { showError('ERROR'); return; }
+        current = fmtNum(result);
+        histEl.textContent = `${stored} ${opSymbol(operator)} ${current} = ${current}`;
+      }
+      stored   = current;
+      operator = val;
+      justEvaled = false;
+      exprEl.textContent = `${stored} ${opSymbol(val)}`;
+      current = '0';
+      updateDisplay('0');
+      return;
+    }
+
+    if (val === '=') {
+      if (operator === null || stored === null) return;
+      const a = parseFloat(stored);
+      const b = parseFloat(current);
+      const result = compute(a, b, operator);
+      if (result === null) { showError('ERROR'); return; }
+      const res = fmtNum(result);
+      histEl.textContent = `${stored} ${opSymbol(operator)} ${current} = ${res}`;
+      exprEl.textContent = `${stored} ${opSymbol(operator)} ${current} =`;
+      current    = res;
+      stored     = null;
+      operator   = null;
+      justEvaled = true;
+      updateDisplay(res, true);
+      return;
+    }
+
+    if (val === '.') {
+      if (justEvaled) { current = '0'; justEvaled = false; }
+      if (!current.includes('.')) {
+        current = current + '.';
+        updateDisplay(current);
+      }
+      return;
+    }
+
+    // digit
+    if (justEvaled) { current = ''; justEvaled = false; exprEl.textContent = ''; }
+    if (current === '0' || current === '-0') {
+      current = current.startsWith('-') ? '-' + val : val;
+    } else {
+      if (current.replace('-','').length >= 12) return;
+      current += val;
+    }
+    updateDisplay(current);
+  }
+
+  function compute(a, b, op) {
+    if (op === '/' && b === 0) return null;
+    if (op === '+') return a + b;
+    if (op === '-') return a - b;
+    if (op === '*') return a * b;
+    if (op === '/') return a / b;
+    return null;
+  }
+
+  function fmtNum(n) {
+    if (!isFinite(n)) return 'ERROR';
+    const s = parseFloat(n.toPrecision(12));
+    return String(s);
+  }
+
+  function opSymbol(op) {
+    return { '+': '+', '-': '−', '*': '×', '/': '÷' }[op] || op;
+  }
+
+  // Memory
+  function memStore()  { memory = parseFloat(current); hasMemory = true; document.getElementById('mr').classList.add('active'); }
+  function memRecall() { if (hasMemory) { current = fmtNum(memory); updateDisplay(current); justEvaled = true; } }
+  function memClear()  { memory = 0; hasMemory = false; document.getElementById('mr').classList.remove('active'); }
+  function memAdd()    { memory += parseFloat(current); hasMemory = true; document.getElementById('mr').classList.add('active'); }
+  function memSub()    { memory -= parseFloat(current); hasMemory = true; document.getElementById('mr').classList.add('active'); }
+
+  // Ripple flash on button
+  function addKeyFlash(val) {
+    const btns = document.querySelectorAll('.c-btn');
+    btns.forEach(b => {
+      const old = b.querySelector('.key-flash');
+      if (old) old.remove();
+    });
+  }
+
+  // Theme toggle
+  let isLight = false;
+  function toggleTheme() {
+    isLight = !isLight;
+    document.documentElement.classList.toggle('light', isLight);
+    const track = document.getElementById('toggleTrack');
+    const label = document.getElementById('toggleLabel');
+    track.classList.toggle('on', isLight);
+    label.textContent = isLight ? 'LIGHT' : 'DARK';
+  }
+
+  // Keyboard support
+  document.addEventListener('keydown', e => {
+    const map = {
+      '0':'0','1':'1','2':'2','3':'3','4':'4',
+      '5':'5','6':'6','7':'7','8':'8','9':'9',
+      '.':'.', '+':'+', '-':'-', '*':'*', '/':'/',
+      'Enter':'=', '=':'=', 'Backspace':'AC', 'Escape':'AC', '%':'%'
+    };
+    if (map[e.key]) { e.preventDefault(); pressBtn(map[e.key]); }
+  });
+
+  updateDisplay('0');
+</script>
+</body>
+</html>
